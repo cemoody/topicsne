@@ -54,13 +54,14 @@ class VTSNE(nn.Module):
         n_diagonal = dkl2.size()[0]
         part = (1 + dkl2).pow(-1.0).sum() - n_diagonal
         # Compute the numerator
-        xi, loss_kldrpi = self.sample_logits(i)
-        xj, loss_kldrpj = self.sample_logits(j)
+        xi, _ = self.sample_logits(i)
+        xj, _ = self.sample_logits(j)
         num = ((1. + (xi - xj)**2.0).sum(1)).pow(-1.0).squeeze()
         qij = num / part.expand_as(num)
-        # Compute KLD
+        # Compute KLD(pij || qij)
         loss_kld = pij * (torch.log(pij) - torch.log(qij))
-        return loss_kld.sum() + loss_klrpi.sum() + loss_kldrpk.sum()
+        # Compute sum of all variational terms
+        return loss_kld.sum() + loss_kldrp.sum() * 1e-7
 
     def __call__(self, *args):
         return self.forward(*args)
