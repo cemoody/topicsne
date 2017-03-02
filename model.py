@@ -4,13 +4,16 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from torch import nn
 
+import numpy as np
+
 
 def gumbel_sample(logits, tau=1.0, temperature=0.0):
     # Uniform sample
-    noise = torch.rand(logits.size())
-    noise.add_(1e-9).log_().neg_()
-    noise.add_(1e-9).log_().neg_()
-    gumbel = Variable(noise)
+    with torch.cuda.device(logits.get_device()):
+        noise = torch.rand(logits.size())
+        noise.add_(1e-9).log_().neg_()
+        noise.add_(1e-9).log_().neg_()
+        gumbel = Variable(noise).cuda()
     sample = (logits + gumbel) / tau + temperature
     sample = F.softmax(sample.view(sample.size(0), -1))
     return sample.view_as(logits)
@@ -25,21 +28,28 @@ def pairwise(data):
 
 
 class TopicSNE(nn.Module):
-    def __init__(self, pij, n_obs, n_topics, n_dim):
-        self.n_obs = n_obs
+    def __init__(self, n_points, n_topics, n_dim):
+        self.n_points = n_points
         self.n_dim = n_dim
         super(TopicSNE, self).__init__()
         # Logit of datapoint-to-topic weight
-        self.logits = nn.Embedding(n_obs, n_topics)
+        self.logits = nn.Embedding(n_points, n_topics)
         # Vector for each topic
         self.topic = nn.Linear(n_topics, n_dim)
+
+    def positions(self):
+        x = self.topic(F.softmax(self.logits.weight))
+        return x
 
     def dirichlet_ll(self):
         pass
 
     def forward(self, pij, i, j):
         # Get  for all points
-        x = self.topic(gumbel_sample(self.logits.weight))
+        with torch.cuda.device(pij.get_device()):
+            alli = torch.from_numpy(np.arange(self.n_points))
+            alli = Variable(alli).cuda()
+        x = self.topic(gumbel_sample(self.logits(alli)))
         # Compute squared pairwise distances
         dkl2 = pairwise(x)
         # Compute partition function
@@ -48,13 +58,13 @@ class TopicSNE(nn.Module):
         # Compute the numerator
         xi = self.topic(gumbel_sample(self.logits(i)))
         xj = self.topic(gumbel_sample(self.logits(j)))
-        num = ((1. + (xi - xj)**2.0).sum(1)).pow(-1.0)
-        qij = num / part
+        num = ((1. + (xi - xj)**2.0).sum(1)).pow(-1.0).squeeze()
+        qij = num / part.expand_as(num)
         # Compute KLD
         loss_kld = pij * (torch.log(pij) - torch.log(qij))
         # Compute Dirichlet likelihood
         # loss_dir = self.dirichlet_ll()
-        return loss_kld # + loss_dir
+        return loss_kld.sum() # + loss_dir
 
     def __call__(self, *args):
         return self.forward(*args)
