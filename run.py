@@ -2,16 +2,15 @@ from sklearn import manifold, datasets
 from sklearn.metrics.pairwise import pairwise_distances
 from scipy.spatial.distance import squareform
 
-from joblib import Memory
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import numpy as np
+
 from wrapper import Wrapper
 from tsne import TSNE
 
-import numpy as np
 
-mem = Memory(cachedir='tmp', verbose=100)
-
-
-@mem.cache
 def preprocess(perplexity=30, metric='euclidean'):
     """ Compute pairiwse probabilities for MNIST pixels.
     """
@@ -46,12 +45,9 @@ for itr in range(500):
     w.fit(pij, i, j)
 
     # Visualize the results
-    import matplotlib
-    matplotlib.use('Agg')
-    import matplotlib.pyplot as plt
-    pos = model.logits.weight.cpu().data.numpy()
+    embed = model.logits.weight.cpu().data.numpy()
     f = plt.figure()
-    plt.scatter(pos[:, 0], pos[:, 1], c=y * 1.0 / y.max())
+    plt.scatter(embed[:, 0], embed[:, 1], c=y * 1.0 / y.max())
     plt.axis('off')
     plt.savefig('scatter_{:03d}.png'.format(itr), bbox_inches='tight')
     plt.close(f)

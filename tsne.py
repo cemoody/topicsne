@@ -35,6 +35,8 @@ class TSNE(nn.Module):
         xi = self.logits(i)
         xj = self.logits(j)
         num = ((1. + (xi - xj)**2.0).sum(1)).pow(-1.0).squeeze()
+        # This probability is the probability of picking the (i, j)
+        # relationship out of N^2 other possible pairs in the 2D embedding.
         qij = num / part.expand_as(num)
         # Compute KLD
         loss_kld = pij * (torch.log(pij) - torch.log(qij))
