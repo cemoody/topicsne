@@ -27,7 +27,7 @@ class Wrapper():
         self.model = model
         if cuda:
             self.model.cuda()
-        self.optimizer = optim.Adam(model.parameters())
+        self.optimizer = optim.Adam(model.parameters(), lr=1e-2)
         self.log_interval = log_interval
 
     def fit(self, *args):

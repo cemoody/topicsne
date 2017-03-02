@@ -38,7 +38,8 @@ class TopicSNE(nn.Module):
         self.topic = nn.Linear(n_topics, n_dim)
 
     def positions(self):
-        x = self.topic(F.softmax(self.logits.weight))
+        # x = self.topic(F.softmax(self.logits.weight))
+        x = self.logits.weight
         return x
 
     def dirichlet_ll(self):
@@ -49,15 +50,18 @@ class TopicSNE(nn.Module):
         with torch.cuda.device(pij.get_device()):
             alli = torch.from_numpy(np.arange(self.n_points))
             alli = Variable(alli).cuda()
-        x = self.topic(gumbel_sample(self.logits(alli)))
+        # x = self.topic(gumbel_sample(self.logits(alli)))
+        x = self.logits(alli)
         # Compute squared pairwise distances
         dkl2 = pairwise(x)
         # Compute partition function
         n_diagonal = dkl2.size()[0]
         part = (1 + dkl2).pow(-1.0).sum() - n_diagonal
         # Compute the numerator
-        xi = self.topic(gumbel_sample(self.logits(i)))
-        xj = self.topic(gumbel_sample(self.logits(j)))
+        # xi = self.topic(gumbel_sample(self.logits(i)))
+        # xj = self.topic(gumbel_sample(self.logits(j)))
+        xi = self.logits(i)
+        xj = self.logits(j)
         num = ((1. + (xi - xj)**2.0).sum(1)).pow(-1.0).squeeze()
         qij = num / part.expand_as(num)
         # Compute KLD

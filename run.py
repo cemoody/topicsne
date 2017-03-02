@@ -4,7 +4,7 @@ from scipy.spatial.distance import squareform
 
 from joblib import Memory
 from wrapper import Wrapper
-from model import TopicSNE
+from tsne import TSNE
 
 import numpy as np
 
@@ -40,15 +40,18 @@ n_topics = 2
 n_dim = 2
 print(n_points, n_dim, n_topics)
 
-model = TopicSNE(n_points, n_topics, n_dim)
-for itr in range(100):
-    w = Wrapper(model, batchsize=4096, epochs=5)
+model = TSNE(n_points, n_topics, n_dim)
+w = Wrapper(model, batchsize=4096, epochs=1)
+for itr in range(500):
     w.fit(pij, i, j)
 
     # Visualize the results
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
-    pos = model.positions().cpu().data.numpy()
+    pos = model.logits.weight.cpu().data.numpy()
+    f = plt.figure()
     plt.scatter(pos[:, 0], pos[:, 1], c=y * 1.0 / y.max())
-    plt.savefig('scatter_{:03d}.png'.format(itr))
+    plt.axis('off')
+    plt.savefig('scatter_{:03d}.png'.format(itr), bbox_inches='tight')
+    plt.close(f)
