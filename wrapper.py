@@ -44,7 +44,7 @@ class Wrapper():
                 loss = self.model(*datas)
                 loss.backward()
                 self.optimizer.step()
-                total += loss.data[0]
+                total += loss.item()
             msg = 'Train Epoch: {} \tLoss: {:.6e}'
             msg = msg.format(epoch, total / (len(args[0]) * 1.0))
             print(msg)
