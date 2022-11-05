@@ -17,23 +17,56 @@ def cauchy(x):
 
 
 class PCTSNE(pl.LightningModule):
-    def __init__(self, n_dim=768, n_out=2, c_ord=1.0, c_rpl=1.0, c_ls=1.0, c_l2=1.0):
+    def __init__(
+        self,
+        n_dim=768,
+        n_out=2,
+        n_hi=32,
+        c_ord=1.0,
+        c_rpl=1.0,
+        c_ls=1.0,
+        c_l2=1.0,
+        p=0.01,
+    ):
+        super().__init__()
         self.n_dim = n_dim
         self.n_out = n_out
-        self.trasform = nn.Sequential(
+        self.n_hi = n_hi
+        self.lin_2d = nn.Linear(n_dim, n_out)
+        self.lin_nd = nn.Linear(n_dim, n_hi)
+        self.lin_fin = self.lin_2d
+        self.n_fin = n_out
+        self.transform_ = nn.Sequential(
             nn.Linear(n_dim, n_dim),
             nn.Mish(),
+            nn.Dropout(p),
             nn.Linear(n_dim, n_dim),
             nn.Mish(),
+            nn.Dropout(p),
             nn.Linear(n_dim, n_dim),
             nn.Mish(),
-            nn.Linear(n_dim, n_out),
         )
         self.bce = torch.nn.BCEWithLogitsLoss(reduction="sum")
         self.c_ord = c_ord
         self.c_rpl = c_rpl
         self.c_ls = c_ls
         self.c_l2 = c_l2
+
+    def transform(self, x):
+        return self.lin_fin(self.transform_(x))
+
+    def transform_broadcast(self, qry_vec, knn_vec):
+        # ivec is size (bs, n_dim)
+        # kvec is size (bs, k, n_dim)
+        k = knn_vec.size()[1]
+        bs = qry_vec.size()[0]
+        # flatten so we can transform knn vec
+        knn_vec_ = knn_vec.reshape(bs * k, self.n_dim)
+        xi_ = self.transform(qry_vec)
+        xj_ = self.transform(knn_vec_)
+        xi = xi_.unsqueeze(1).expand(bs, k, self.n_fin)
+        xj = xj_.reshape(bs, k, self.n_fin)
+        return xi, xj
 
     def compute_distances(self, xi, xj):
         # Compute the distance between each query and
@@ -85,7 +118,7 @@ class PCTSNE(pl.LightningModule):
         dik, dij = self.compute_distances(xi, xj)
 
         loss_ord = self.loss_ordinal(dik) / (bs * k)
-        loss_rpl = self.loss_repel(dij) / (bs * bs * k)
+        loss_rpl = self.loss_repel(dik, dij) / (bs * bs * k)
         loss_xi = self.loss_l2(xi) / (bs * k)
         loss_xj = self.loss_l2(xj) / (bs * k)
 
